@@ -1,0 +1,63 @@
+# Put this file in the root of a fork of botlabs-gg/yagpdb.
+# In Dokploy, create a Docker Compose service from that Git repository.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: yagpdb_docker/Dockerfile
+    restart: unless-stopped
+    init: true
+    command: ["-all", "-pa", "-https=false", "-exthttps=true"]
+    environment:
+      YAGPDB_OWNER: ${YAGPDB_OWNER:?Set the Discord owner user ID}
+      YAGPDB_BOTTOKEN: ${YAGPDB_BOTTOKEN:?Set the bot token}
+      YAGPDB_CLIENTID: ${YAGPDB_CLIENTID:?Set the application ID}
+      YAGPDB_CLIENTSECRET: ${YAGPDB_CLIENTSECRET:?Set the OAuth client secret}
+      YAGPDB_HOST: ${YAGPDB_HOST:?Set the dashboard hostname without a scheme}
+      YAGPDB_PQHOST: db
+      YAGPDB_PQDB: yagpdb
+      YAGPDB_PQUSERNAME: yagpdb
+      YAGPDB_PQPASSWORD: ${YAGPDB_DB_PASSWORD:?Set a PostgreSQL password}
+      YAGPDB_REDIS: redis:6379
+      YAGPDB_PREMIUM_ALL_GUILDS_PREMIUM: "true"
+    expose:
+      - "80"
+    volumes:
+      - yagpdb_soundboard:/app/soundboard
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: yagpdb
+      POSTGRES_USER: yagpdb
+      POSTGRES_PASSWORD: ${YAGPDB_DB_PASSWORD:?Set a PostgreSQL password}
+    volumes:
+      - yagpdb_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yagpdb -d yagpdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - yagpdb_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  yagpdb_postgres:
+  yagpdb_redis:
+  yagpdb_soundboard:
